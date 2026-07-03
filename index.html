@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -3517,64 +3518,71 @@ const THEME = {
 };
 const SUB1 = 'DERM ENVIRONMENTAL MONITORING &';
 const SUB2 = 'RESTORATION DIVISION';
-const ASPECT = 2.15; // width / height of the stamp badge
+const ASPECT = 1.5; // width / height of the stamp badge (measured from reference: 130 / 86.67)
 
 function drawReceived(ctx,W,H){
   const letters = 'RECEIVED'.split('');
-  const base = H*0.235, big = base*1.40;
+  let base = H*0.40, big = base*1.40;           // R and D are 40% larger; big value, width-fit constrains it
   const isBig = i => (i===0 || i===letters.length-1);
-  const ls = base*0.015;
-  let widths=[], total=0;
-  for (let i=0;i<letters.length;i++){
-    ctx.font = `800 ${isBig(i)?big:base}px ${THEME.stampFont}`;
-    const w = ctx.measureText(letters[i]).width; widths.push(w); total += w;
-  }
-  total += ls*(letters.length-1);
-  let x = (W-total)/2;
-  const baseline = H*0.345;
+  const measure = () => {
+    let widths=[], total=0;
+    for (let i=0;i<letters.length;i++){
+      ctx.font = `800 ${isBig(i)?big:base}px ${THEME.stampFont}`;
+      const w = ctx.measureText(letters[i]).width; widths.push(w); total += w;
+    }
+    total += (base*0.01)*(letters.length-1);
+    return {widths, total};
+  };
+  let m = measure();
+  const maxW = W*0.95;                           // RECEIVED spans nearly the full badge width
+  if (m.total > maxW){ const k = maxW/m.total; base*=k; big*=k; m = measure(); }
+  const topY = H*0.075;                          // common TOP edge for every letter
+  const capOf = fs => fs*0.72;                   // approx cap height for a given font size
+  const ls = base*0.01;
+  let x = (W - m.total)/2;
   ctx.fillStyle = THEME.red; ctx.textAlign='left'; ctx.textBaseline='alphabetic';
   for (let i=0;i<letters.length;i++){
-    ctx.font = `800 ${isBig(i)?big:base}px ${THEME.stampFont}`;
+    const fs = isBig(i) ? big : base;
+    ctx.font = `800 ${fs}px ${THEME.stampFont}`;
+    const baseline = topY + capOf(fs);           // tops align; the larger R and D hang lower
     ctx.fillText(letters[i], x, baseline);
-    x += widths[i] + ls;
+    x += m.widths[i] + ls;
   }
 }
 
 function drawStamp(ctx,W,H,dateStr){
   ctx.clearRect(0,0,W,H);
-  // double red border
-  const pad = H*0.055;
-  ctx.strokeStyle = THEME.red; ctx.lineJoin='round';
-  ctx.lineWidth = Math.max(2, H*0.040);
-  roundRectPath(ctx, pad, pad, W-2*pad, H-2*pad, H*0.16); ctx.stroke();
-  const ip = pad + H*0.055;
-  ctx.lineWidth = Math.max(1.2, H*0.018);
-  roundRectPath(ctx, ip, ip, W-2*ip, H-2*ip, H*0.12); ctx.stroke();
+  // single SHARP-cornered border
+  const bw = Math.max(2, H*0.032);
+  ctx.strokeStyle = THEME.red; ctx.lineJoin='miter'; ctx.lineCap='butt';
+  ctx.lineWidth = bw;
+  const inset = bw/2 + H*0.012;
+  ctx.strokeRect(inset, inset, W-2*inset, H-2*inset);   // sharp corners
 
-  // RECEIVED
+  // RECEIVED (fills width, sits high)
   drawReceived(ctx,W,H);
 
-  // date box
-  const bx0=W*0.205, bx1=W*0.795, by0=H*0.430, by1=H*0.600;
-  ctx.strokeStyle = THEME.box; ctx.lineWidth = Math.max(1, H*0.012);
-  roundRectPath(ctx, bx0,by0,(bx1-bx0),(by1-by0), H*0.03); ctx.stroke();
+  // date box — large, SHARP corners
+  const bx0=W*0.185, bx1=W*0.815, by0=H*0.360, by1=H*0.655;
+  ctx.strokeStyle = THEME.red; ctx.lineWidth = Math.max(1.5, H*0.020);
+  ctx.strokeRect(bx0, by0, bx1-bx0, by1-by0);           // sharp corners
   // date text (auto-fit)
-  let ds = H*0.135;
+  let ds = H*0.185;
   ctx.fillStyle = THEME.ink; ctx.textAlign='center'; ctx.textBaseline='middle';
   ctx.font = `700 ${ds}px ${THEME.textFont}`;
   while (ctx.measureText(dateStr).width > (bx1-bx0)*0.84 && ds>6){ ds*=0.94; ctx.font=`700 ${ds}px ${THEME.textFont}`; }
   ctx.fillText(dateStr, (bx0+bx1)/2, (by0+by1)/2 + ds*0.04);
 
-  // subtitle (two lines, auto-fit)
-  let ss = H*0.094;
+  // subtitle (two lines, small, auto-fit)
+  let ss = H*0.078;
   ctx.fillStyle = THEME.ink; ctx.textAlign='center'; ctx.textBaseline='alphabetic';
   ctx.font = `700 ${ss}px ${THEME.textFont}`;
-  const maxw = (W-2*ip)*0.94;
-  while (Math.max(ctx.measureText(SUB1).width, ctx.measureText(SUB2).width) > maxw && ss>5){
+  const maxw = (W-2*inset)*0.90;
+  while (Math.max(ctx.measureText(SUB1).width, ctx.measureText(SUB2).width) > maxw && ss>4){
     ss*=0.94; ctx.font=`700 ${ss}px ${THEME.textFont}`;
   }
-  ctx.fillText(SUB1, W/2, H*0.755);
-  ctx.fillText(SUB2, W/2, H*0.755 + ss*1.28);
+  ctx.fillText(SUB1, W/2, H*0.790);
+  ctx.fillText(SUB2, W/2, H*0.895);
 }
 
 /* ---------- app state ---------- */
@@ -3826,7 +3834,7 @@ async function createStampAnnot(page){
   const annot = page.createAnnotation('Stamp');
   annot.setRect([x0, y0, x1, y1]);
   annot.setStampImage(img);
-  try{ annot.setFlags(4); }catch(_){}           // Print flag; no Contents → no comment popup
+  try{ annot.setFlags(4|128); }catch(_){}       // Print + Locked → stamp can't be moved/deleted in a viewer
   annot.update();
   return annot;
 }
